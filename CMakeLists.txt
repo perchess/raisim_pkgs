@@ -13,6 +13,8 @@ find_package(catkin REQUIRED
   raisim
   quadruped_ctrl
   roslib
+  tf
+  geometry_msgs
   COMPONENTS)
 
 catkin_package(
@@ -31,7 +33,9 @@ catkin_package(
 #    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/../rsc" DESTINATION ${CMAKE_BINARY_DIR}/examples)
 #endif()
 #message("LIBS TEST " ${catkin_LIBRARIES})
-include_directories ( ${EIGEN3_INCLUDE_DIRS}
+include_directories (
+    include
+    ${EIGEN3_INCLUDE_DIRS}
     ${catkin_INCLUDE_DIRS})
 
 #==
@@ -45,7 +49,7 @@ function(create_executable app_name file_name)
 #        target_link_libraries(${app_name} PUBLIC raisim::raisim Ws2_32 Winmm)
 #        target_compile_options(${app_name} PRIVATE "/MP")
 #    else()
-        target_link_libraries(${app_name} PUBLIC pthread ${catkin_LIBRARIES})
+        target_link_libraries(${app_name} PUBLIC pthread ${catkin_LIBRARIES} )
 #    endif()
     target_include_directories(${app_name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endfunction()
@@ -61,10 +65,12 @@ create_executable(balls src/server/balls.cpp)
 create_executable(atlas src/server/atlas.cpp)
 create_executable(heightmap src/server/heightmap.cpp)
 create_executable(robots src/server/aliengo.cpp)
-create_executable(minicheetah
+set (minicheetah_src
+    src/server/minicheetah/ros_controller.cpp
     src/server/minicheetah/minicheetah.cpp
-    src/server/minicheetah/dynlibclass.cpp
-    include/dynlibclass.h )
+    include/ros_controller.h )
+add_executable(minicheetah ${minicheetah_src})
+target_link_libraries(minicheetah PUBLIC pthread ${catkin_LIBRARIES} Eigen3::Eigen)
 create_executable(materials src/server/material.cpp)
 create_executable(materialStaticFriction src/server/materialStaticFriction.cpp)
 create_executable(heightMapUsingPng src/server/heightMapUsingPng.cpp)
