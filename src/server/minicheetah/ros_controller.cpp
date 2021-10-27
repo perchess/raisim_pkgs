@@ -69,16 +69,20 @@ void MPCControllerRos::updateFeedback()
 {
   tf::Matrix3x3 rot_mat(tf::Quaternion(q_(4), q_(5),q_(6), q_(3)));
   Eigen::VectorXd acc = (qd_ - prev_qd_) * step_freq_;
+  acc(2) += 9.8;
   imu_.accelerometer(0, 0) = rot_mat[0][0] * acc(0) + rot_mat[1][0]*acc(1) + rot_mat[2][0] * acc(2);
   imu_.accelerometer(1, 0) = rot_mat[0][1] * acc(0) + rot_mat[1][1]*acc(1) + rot_mat[2][1] * acc(2);
-  imu_.accelerometer(2, 0) = 9.8 + rot_mat[0][2] * acc(0) + rot_mat[1][2]*acc(1) + rot_mat[2][2] * acc(2);
+  imu_.accelerometer(2, 0) = rot_mat[0][2] * acc(0) + rot_mat[1][2]*acc(1) + rot_mat[2][2] * acc(2);
   imu_.quat(3, 0) = q_(3);
   imu_.quat(0, 0) = q_(4);
   imu_.quat(1, 0) = q_(5);
   imu_.quat(2, 0) = q_(6);
-  imu_.gyro(0, 0) = qd_(3);
-  imu_.gyro(1, 0) = qd_(4);
-  imu_.gyro(2, 0) =qd_(5);
+  imu_.gyro(0, 0) = rot_mat[0][0] * qd_(3) + rot_mat[1][0]*qd_(4)+ rot_mat[2][0] * qd_(5);
+  imu_.gyro(1, 0) = rot_mat[0][1] * qd_(3) + rot_mat[1][1]*qd_(4)+ rot_mat[2][1] * qd_(5);
+  imu_.gyro(2, 0) = rot_mat[0][2] * qd_(3) + rot_mat[1][2]*qd_(4)+ rot_mat[2][2] * qd_(5);
+//  imu_.gyro(0, 0) = qd_(3);
+//  imu_.gyro(1, 0) = qd_(4);
+//  imu_.gyro(2, 0) =qd_(5);
 
   std::vector<float> vec_q(q_.data() + 7, q_.data() + q_.size());
   std::vector<float> vec_qd(qd_.data() + 6, qd_.data() + qd_.size());
