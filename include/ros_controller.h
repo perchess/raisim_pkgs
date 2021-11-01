@@ -9,6 +9,20 @@
 #include <eigen3/Eigen/Eigen>
 #include <tf/tf.h>
 #include <geometry_msgs/Twist.h>
+#include <quadruped_ctrl/QuadrupedCmdBool.h>
+
+enum Gaits
+{
+  TROT = 0,
+  BUNDING = 1,
+  PRONKING = 2,
+  STANDING = 4,
+  TROT_RUN = 5,
+  GALLOPING = 7,
+  PACING = 8,
+  WALK1 = 10,
+  WALK2 = 11
+};
 
 
 class MPCControllerRos
@@ -21,11 +35,18 @@ public:
   void preWork();
   void readRosParams();
   void updateFeedback();
-  void  spin();
+  void spin();
   void cmdVelCallback(const geometry_msgs::TwistConstPtr& msg);
+  bool srvSetMode(quadruped_ctrl::QuadrupedCmdBoolRequest &req,
+                  quadruped_ctrl::QuadrupedCmdBoolResponse &res);
+
+  bool srvSetGait(quadruped_ctrl::QuadrupedCmdBoolRequest &req,
+                  quadruped_ctrl::QuadrupedCmdBoolResponse &res);
 private:
   ros::NodeHandle nh_;
   ros::Subscriber cmd_vel_sub_;
+  ros::ServiceServer srv_mode_server_;
+  ros::ServiceServer srv_gait_server_;
   geometry_msgs::Twist twist_;
   GaitCtrller* controller_;
   double step_freq_;

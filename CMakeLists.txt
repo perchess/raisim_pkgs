@@ -20,7 +20,7 @@ find_package(catkin REQUIRED
 catkin_package(
    INCLUDE_DIRS include
    LIBRARIES
-   CATKIN_DEPENDS roscpp raisim roslib quadruped_ctrl
+   CATKIN_DEPENDS roscpp raisim roslib quadruped_ctrl message_runtime
    DEPENDS)
 
 

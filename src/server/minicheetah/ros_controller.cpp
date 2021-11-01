@@ -12,6 +12,8 @@ MPCControllerRos::MPCControllerRos(double freq)
   controller_->SetRobotMode(0);
   generalizedFrorce_ = Eigen::VectorXd::Zero(robot_->getDOF());
   cmd_vel_sub_ = nh_.subscribe("cmd_vel", 10, &MPCControllerRos::cmdVelCallback,this);
+  srv_mode_server_ = nh_.advertiseService("set_robot_mode", &MPCControllerRos::srvSetMode, this);
+  srv_gait_server_ = nh_.advertiseService("set_gait_type", &MPCControllerRos::srvSetGait, this);
 }
 
 MPCControllerRos::~MPCControllerRos()
@@ -80,9 +82,6 @@ void MPCControllerRos::updateFeedback()
   imu_.gyro(0, 0) = rot_mat[0][0] * qd_(3) + rot_mat[1][0]*qd_(4)+ rot_mat[2][0] * qd_(5);
   imu_.gyro(1, 0) = rot_mat[0][1] * qd_(3) + rot_mat[1][1]*qd_(4)+ rot_mat[2][1] * qd_(5);
   imu_.gyro(2, 0) = rot_mat[0][2] * qd_(3) + rot_mat[1][2]*qd_(4)+ rot_mat[2][2] * qd_(5);
-//  imu_.gyro(0, 0) = qd_(3);
-//  imu_.gyro(1, 0) = qd_(4);
-//  imu_.gyro(2, 0) =qd_(5);
 
   std::vector<float> vec_q(q_.data() + 7, q_.data() + q_.size());
   std::vector<float> vec_qd(qd_.data() + 6, qd_.data() + qd_.size());
@@ -108,4 +107,58 @@ void MPCControllerRos::spin()
 void MPCControllerRos::cmdVelCallback(const geometry_msgs::TwistConstPtr &msg)
 {
   twist_ = *msg;
+}
+
+bool MPCControllerRos::srvSetMode(quadruped_ctrl::QuadrupedCmdBoolRequest &req,
+                                  quadruped_ctrl::QuadrupedCmdBoolResponse &res)
+{
+  controller_->SetRobotMode(req.cmd);
+  res.result = true;
+  res.description = "Service to set robot mode. 1 for low energy mode, 0 for high perfomance mode.";
+  return true;
+}
+
+bool MPCControllerRos::srvSetGait(quadruped_ctrl::QuadrupedCmdBoolRequest &req,
+                                  quadruped_ctrl::QuadrupedCmdBoolResponse &res)
+{
+  if (0 <= req.cmd && req.cmd < 12)
+  {
+    controller_->SetGaitType(req.cmd);
+    res.result = true;
+  }
+  else
+    res.result = false;
+  switch  (req.cmd)
+  {
+  case TROT:
+    res.description = "Set TROT";
+    break;
+  case BUNDING:
+    res.description = "Set BUNDING";
+    break;
+  case PRONKING:
+    res.description = "Set PRONKING";
+    break;
+  case STANDING:
+    res.description = "Set STANDING";
+    break;
+  case TROT_RUN:
+    res.description = "Set TROT_RUN";
+    break;
+  case GALLOPING:
+    res.description = "Set GALLOPING";
+    break;
+  case PACING:
+    res.description = "Set PACING";
+    break;
+  case WALK1:
+    res.description = "Set WALK1";
+    break;
+  case WALK2:
+    res.description = "Set WALK2";
+    break;
+  default:
+    res.description = "Default behavior";
+  }
+  return true;
 }
