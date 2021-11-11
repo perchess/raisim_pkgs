@@ -22,8 +22,7 @@ int main(int argc, char* argv[]) {
   /// create objects
   auto ground = world.addGround();
 
-  std::string monkeyFile =
-      binaryPath.getDirectory() + "\\rsc\\monkey\\monkey.obj";
+  std::string monkeyFile ="/home/den/catkin_workspaces/raisim_common/raisim_ros/src/raisim_ros/rsc/monkey/monkey.obj";
 
   raisim::Mat<3, 3> inertia;
   inertia.setIdentity();
