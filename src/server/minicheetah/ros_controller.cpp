@@ -52,11 +52,6 @@ void MPCControllerRos::raisimSetup()
       0.2086973786354065, -0.7694507837295532, 1.945541501045227,
       -0.2868724763393402, -0.7470470666885376, 1.8848075866699219,
       0.2648811340332031, -0.7518696784973145, 1.9018760919570923;
-//  jointNominalConfig << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
-//      -0.23110604286193848, -0.7660617828369141, 1.930681824684143,
-//      0.2086973786354065, -0.7694507837295532, 1.945541501045227,
-//      -0.2868724763393402, -0.7470470666885376, 1.8848075866699219,
-//      0.2648811340332031, -0.7518696784973145, 1.9018760919570923;
   robot_->setControlMode(raisim::ControlMode::FORCE_AND_TORQUE);
 
   robot_->setGeneralizedForce(Eigen::VectorXd::Zero(robot_->getDOF()));
@@ -71,10 +66,8 @@ void MPCControllerRos::raisimSetup()
 void MPCControllerRos::preWork()
 {
   size_t iters = 10;
-//  controller_->SetGaitType(STANDING);
   for (size_t i = 0; i < iters; i++)
   {
-    std::cout << "DEBUG dt microseconds " << world_.getTimeStep() * 1000000 << std::endl;
     std::this_thread::sleep_for(std::chrono::microseconds(long(world_.getTimeStep() * 1000000)));
     raisim_server_->integrateWorldThreadSafe();
     robot_->getState(q_, qd_);
@@ -106,13 +99,6 @@ void MPCControllerRos::updateFeedback()
   legdata_ = LegData(vec_q, vec_qd);
 }
 
-void a1_effort (Eigen::VectorXd& eff)
-{
-  eff(1) *= -1.0;
-  eff(4) *= -1.0;
-//  eff(7) *= -1.0;
-//  eff(10) *= -1.0;
-}
 
 void MPCControllerRos::spin()
 {
@@ -120,7 +106,6 @@ void MPCControllerRos::spin()
   robot_->getState(q_, qd_);
   updateFeedback();
   effort_ = controller_->TorqueCalculator(imu_, legdata_);
-//  a1_effort(effort_);
   generalizedFrorce_ << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, effort_;
   robot_->setGeneralizedForce(generalizedFrorce_);
   prev_q_ = q_;
