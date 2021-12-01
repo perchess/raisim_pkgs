@@ -4,22 +4,24 @@
 MPCControllerRos::MPCControllerRos(double freq)
   : step_freq_(freq)
   , world_()
+  //  , nh_("~")
 {
+  readParam<std::string>("~urdf_path", urdf_path_, "/home/den/catkin_workspaces/raisim_common/raisim_ros/src/a1_description/urdf/a1.urdf");
   raisimSetup();
   prev_q_ = Eigen::VectorXd::Zero(robot_->getGeneralizedCoordinateDim());
   prev_qd_ = VectorXd::Zero(robot_->getDOF());
   pid_params_ = std::vector<float>({100.0f, 1.0f, 0.01f, 0.05f});
-  controller_ = new GaitCtrller(freq, pid_params_);
-  controller_->SetRobotMode(0);
+  controller_ = new GaitCtrller(freq, pid_params_);// сделать рос параметрами
   generalizedFrorce_ = Eigen::VectorXd::Zero(robot_->getDOF());
   cmd_vel_sub_ = nh_.subscribe("cmd_vel", 10, &MPCControllerRos::cmdVelCallback,this);
-  srv_mode_server_ = nh_.advertiseService("set_robot_mode", &MPCControllerRos::srvSetMode, this);
-  srv_gait_server_ = nh_.advertiseService("set_gait_type", &MPCControllerRos::srvSetGait, this);
+  srv_mode_server_ = nh_.advertiseService(ros::this_node::getName() + "/set_robot_mode", &MPCControllerRos::srvSetMode, this);
+  srv_gait_server_ = nh_.advertiseService(ros::this_node::getName() + "/set_gait_type", &MPCControllerRos::srvSetGait, this);
+
 }
 
 MPCControllerRos::~MPCControllerRos()
 {
-    std::cout<<"mass "<<robot_->getMassMatrix()[0]<<std::endl;
+  std::cout<<"mass "<<robot_->getMassMatrix()[0]<<std::endl;
   raisim_server_->killServer();
 }
 
@@ -34,8 +36,8 @@ void MPCControllerRos::raisimSetup()
   // inertia moments [18.3001, 28.8333, 13.8001] [1.16388e+20, 8.33528e+19, 4.95214e+19] [116388, 83352.8, 49521.4]
   // [-2.50722e-16, 1.24683e-16, -2.15625]
   raisim::Mat<3, 3> inertia({8.37, 0.0, 0.0,
-                            0.0, 9.1, -0.8358,
-                            0.0, -0.8358, 3.04});
+                             0.0, 9.1, -0.8358,
+                             0.0, -0.8358, 3.04});
   raisim::Vec<3> com({0.0, 0.34, -0.18});
   raisim::Mat<3, 3> inertia_;
   inertia_.setIdentity();
@@ -43,24 +45,23 @@ void MPCControllerRos::raisimSetup()
   auto stairs = world_.addMesh("/home/den/catkin_workspaces/raisim_common/raisim_ros/src/raisim_ros/rsc/world/stairs/solidworks/solid_stairs.obj", 1000.0, inertia, com_,0.0005);
   stairs->setPosition(0.0,3.0,0.0);
   stairs->setOrientation(0.707,0.707,0.0,0.0);
-//  robot_ = world_.addArticulatedSystem(ros::package::getPath("quadruped_ctrl") + "\\urdf\\aliengo\\aliengo.urdf");
-  robot_ = world_.addArticulatedSystem("/home/den/catkin_workspaces/raisim_common/raisim_ros/src/a1_description/urdf/a1_edited.urdf");
-//  robot_ = world_.addArticulatedSystem(ros::package::getPath("quadruped_ctrl") + "\\urdf\\mini_cheetah\\mini_cheetah.urdf");
+  robot_ = world_.addArticulatedSystem(urdf_path_);
   Eigen::VectorXd jointNominalConfig(robot_->getGeneralizedCoordinateDim());
   jointNominalConfig << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
-      -0.23110604286193848, -0.7660617828369141, 1.930681824684143,
-      0.2086973786354065, -0.7694507837295532, 1.945541501045227,
-      -0.2868724763393402, -0.7470470666885376, 1.8848075866699219,
-      0.2648811340332031, -0.7518696784973145, 1.9018760919570923;
-//  jointNominalConfig << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
-//      -0.23110604286193848, -0.7660617828369141, 1.930681824684143,
-//      0.2086973786354065, -0.7694507837295532, 1.945541501045227,
-//      -0.2868724763393402, -0.7470470666885376, 1.8848075866699219,
-//      0.2648811340332031, -0.7518696784973145, 1.9018760919570923;
+      -0.23110604286193848, 0.7660617828369141, -1.930681824684143,
+      0.2086973786354065, 0.7694507837295532, -1.945541501045227,
+      -0.2868724763393402, 0.7470470666885376, -1.8848075866699219,
+      0.2648811340332031, 0.7518696784973145, -1.9018760919570923;
+  //  jointNominalConfig << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
+  //      -0.23110604286193848, -0.7660617828369141, 1.930681824684143,
+  //      0.2086973786354065, -0.7694507837295532, 1.945541501045227,
+  //      -0.2868724763393402, -0.7470470666885376, 1.8848075866699219,
+  //      0.2648811340332031, -0.7518696784973145, 1.9018760919570923;
+  robot_->setGeneralizedCoordinate(jointNominalConfig);
   robot_->setControlMode(raisim::ControlMode::FORCE_AND_TORQUE);
 
   robot_->setGeneralizedForce(Eigen::VectorXd::Zero(robot_->getDOF()));
-  robot_->setGeneralizedCoordinate(jointNominalConfig);
+
   robot_->setName("minicheetah");
   /// launch raisim server
   raisim_server_ = new raisim::RaisimServer(&world_);
@@ -71,13 +72,13 @@ void MPCControllerRos::raisimSetup()
 void MPCControllerRos::preWork()
 {
   size_t iters = 10;
-//  controller_->SetGaitType(STANDING);
+  controller_->SetGaitType(STANDING);
   for (size_t i = 0; i < iters; i++)
   {
-    std::cout << "DEBUG dt microseconds " << world_.getTimeStep() * 1000000 << std::endl;
     std::this_thread::sleep_for(std::chrono::microseconds(long(world_.getTimeStep() * 1000000)));
     raisim_server_->integrateWorldThreadSafe();
     robot_->getState(q_, qd_);
+    a1_feedback(q_, qd_);
     updateFeedback();
     controller_->PreWork(imu_, legdata_);
     prev_q_ = q_;
@@ -106,21 +107,14 @@ void MPCControllerRos::updateFeedback()
   legdata_ = LegData(vec_q, vec_qd);
 }
 
-void a1_effort (Eigen::VectorXd& eff)
-{
-  eff(1) *= -1.0;
-  eff(4) *= -1.0;
-//  eff(7) *= -1.0;
-//  eff(10) *= -1.0;
-}
-
 void MPCControllerRos::spin()
 {
   ros::spinOnce();
   robot_->getState(q_, qd_);
+  a1_feedback(q_, qd_);
   updateFeedback();
   effort_ = controller_->TorqueCalculator(imu_, legdata_);
-//  a1_effort(effort_);
+  a1_effort(effort_);
   generalizedFrorce_ << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, effort_;
   robot_->setGeneralizedForce(generalizedFrorce_);
   prev_q_ = q_;
@@ -192,4 +186,26 @@ bool MPCControllerRos::srvSetGait(quadruped_ctrl::QuadrupedCmdBoolRequest &req,
     res.description = "Default behavior";
   }
   return true;
+}
+
+//  Изменения в направлениях осей для unitree a1
+void a1_effort (Eigen::VectorXd& eff)
+{
+  for (int i = 0; i < 4; i++)
+  {
+    eff(i * 3 + 1) = -eff(i * 3 + 1);
+    eff(i * 3 + 2) = -eff(i * 3 + 2);
+  }
+}
+
+//  Изменения в направлениях осей для unitree a1
+void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd)
+{
+  for (int i = 0; i < 4; i++)
+  {
+    q(i * 3 + 1+7) = -q(i * 3 + 1+7);
+    q(i * 3 + 2+7) = -q(i * 3 + 2+7);
+    qd(i * 3 + 1+6) = -qd(i * 3 + 1+6);
+    qd(i * 3 + 2+6) = -qd(i * 3 + 2+6);
+  }
 }

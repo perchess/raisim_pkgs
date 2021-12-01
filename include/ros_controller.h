@@ -63,6 +63,7 @@ private:
   LegData legdata_;
   Eigen::VectorXd effort_;
   Eigen::VectorXd generalizedFrorce_;
+  std::string urdf_path_;
 };
 
 //! @brief Шаблоннная функция для чтения параметров
@@ -76,3 +77,11 @@ void readParam(const std::string param_name, T& param_value,
     param_value = default_value;
   }
 }
+
+//  Изменения в направлениях осей для unitree a1
+void a1_effort (Eigen::VectorXd& eff);
+
+
+//  Изменения в направлениях осей для unitree a1
+void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd);
+
