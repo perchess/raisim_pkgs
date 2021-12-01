@@ -16,6 +16,7 @@ find_package(catkin REQUIRED
   tf
   geometry_msgs
   COMPONENTS)
+#message ("CMAKE_PREFIX : " ${CMAKE_PREFIX_PATH})
 
 catkin_package(
    INCLUDE_DIRS include
