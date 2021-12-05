@@ -16,6 +16,7 @@
   <depend>roslib</depend>
   <depend>geometry_msgs</depend>
   <depend>message_runtime</depend>
+  <depend>dynamic_reconfigure</depend>
   <depend>raisim</depend>
   <depend>quadruped_ctrl</depend>
   <depend>eigen3</depend>

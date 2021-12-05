@@ -15,8 +15,12 @@ find_package(catkin REQUIRED
   roslib
   tf
   geometry_msgs
+  dynamic_reconfigure
   COMPONENTS)
 #message ("CMAKE_PREFIX : " ${CMAKE_PREFIX_PATH})
+generate_dynamic_reconfigure_options(
+  cfg/general.cfg
+)
 
 catkin_package(
    INCLUDE_DIRS include
@@ -95,3 +99,6 @@ create_executable(xmlRader src/xml/xmlReader.cpp)
 create_executable(mjcf_humanoid src/mjcf/humanoid.cpp)
 create_executable(mjcf_ant src/mjcf/ant.cpp)
 create_executable(mjcf_cassie src/mjcf/cassie.cpp)
+
+
+add_dependencies(minicheetah ${PROJECT_NAME}_gencfg)

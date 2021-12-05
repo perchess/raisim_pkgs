@@ -10,13 +10,14 @@ MPCControllerRos::MPCControllerRos(double freq)
   raisimSetup();
   prev_q_ = Eigen::VectorXd::Zero(robot_->getGeneralizedCoordinateDim());
   prev_qd_ = VectorXd::Zero(robot_->getDOF());
-  pid_params_ = std::vector<float>({100.0f, 1.0f, 0.01f, 0.05f});
-  controller_ = new GaitCtrller(freq, pid_params_);// сделать рос параметрами
+    // cartesian_kp  cartesian_kd  joint_kp  joint_kd
+  controller_ = new GaitCtrller(freq, std::vector<float>({100.0f, 1.0f, 0.01f, 0.05f}));// сделать рос параметрами
   generalizedFrorce_ = Eigen::VectorXd::Zero(robot_->getDOF());
   cmd_vel_sub_ = nh_.subscribe("cmd_vel", 10, &MPCControllerRos::cmdVelCallback,this);
   srv_mode_server_ = nh_.advertiseService(ros::this_node::getName() + "/set_robot_mode", &MPCControllerRos::srvSetMode, this);
   srv_gait_server_ = nh_.advertiseService(ros::this_node::getName() + "/set_gait_type", &MPCControllerRos::srvSetGait, this);
-
+  df_callback_type = boost::bind(&MPCControllerRos::dynamicReconfigureCallback, this, _1, _2);
+  df_server.setCallback(df_callback_type);
 }
 
 MPCControllerRos::~MPCControllerRos()
@@ -208,4 +209,18 @@ void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd)
     qd(i * 3 + 1+6) = -qd(i * 3 + 1+6);
     qd(i * 3 + 2+6) = -qd(i * 3 + 2+6);
   }
+}
+
+
+void MPCControllerRos::dynamicReconfigureCallback(raisim_examples::generalConfig &config, uint32_t level){
+  ROS_INFO("Reconfigure Request: %f %f %f %f %s %s %d",
+            config.kp_cartesian,
+            config.kd_cartesian,
+            config.kp_joint,
+            config.kd_joint,
+            config.str_param.c_str(),
+            config.bool_param?"True":"False",
+            config.size);
+  // TODO: Передавать конфигу в контроллер, а там разбивать параметры
+  controller_->SetLegParams(PDcoeffs(config.kp_cartesian, config.kd_cartesian, config.kp_joint, config.kd_joint));
 }
