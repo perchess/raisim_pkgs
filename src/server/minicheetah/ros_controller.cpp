@@ -212,15 +212,8 @@ void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd)
 }
 
 
-void MPCControllerRos::dynamicReconfigureCallback(raisim_examples::generalConfig &config, uint32_t level){
-  ROS_INFO("Reconfigure Request: %f %f %f %f %s %s %d",
-            config.kp_cartesian,
-            config.kd_cartesian,
-            config.kp_joint,
-            config.kd_joint,
-            config.str_param.c_str(),
-            config.bool_param?"True":"False",
-            config.size);
+void MPCControllerRos::dynamicReconfigureCallback(quadruped_msgs::generalConfig &config, uint32_t level){
+  ROS_INFO("Get new config");
   // TODO: Передавать конфигу в контроллер, а там разбивать параметры
-  controller_->SetLegParams(PDcoeffs(config.kp_cartesian, config.kd_cartesian, config.kp_joint, config.kd_joint));
+  controller_->updateConfig(config);
 }

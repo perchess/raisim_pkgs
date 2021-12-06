@@ -11,21 +11,28 @@ find_package(catkin REQUIRED
   roscpp
   trajectory_msgs
   raisim
+  quadruped_msgs
   quadruped_ctrl
   roslib
   tf
   geometry_msgs
-  dynamic_reconfigure
+#  dynamic_reconfigure
   COMPONENTS)
 #message ("CMAKE_PREFIX : " ${CMAKE_PREFIX_PATH})
-generate_dynamic_reconfigure_options(
-  cfg/general.cfg
-)
+#generate_dynamic_reconfigure_options(
+#  cfg/general.cfg
+#)
 
 catkin_package(
    INCLUDE_DIRS include
    LIBRARIES
-   CATKIN_DEPENDS roscpp raisim roslib quadruped_ctrl message_runtime
+   CATKIN_DEPENDS
+   roscpp
+   raisim
+   roslib
+   quadruped_msgs
+   message_runtime
+   quadruped_ctrl
    DEPENDS)
 
 
@@ -101,4 +108,4 @@ create_executable(mjcf_ant src/mjcf/ant.cpp)
 create_executable(mjcf_cassie src/mjcf/cassie.cpp)
 
 
-add_dependencies(minicheetah ${PROJECT_NAME}_gencfg)
+add_dependencies(minicheetah quadruped_msgs_gencfg)

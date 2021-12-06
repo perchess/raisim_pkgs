@@ -11,7 +11,7 @@
 #include <geometry_msgs/Twist.h>
 #include <quadruped_ctrl/QuadrupedCmdBool.h>
 #include <dynamic_reconfigure/server.h>
-#include <raisim_examples/generalConfig.h>
+#include <quadruped_msgs/generalConfig.h>
 
 enum Gaits
 {
@@ -45,7 +45,7 @@ public:
   bool srvSetGait(quadruped_ctrl::QuadrupedCmdBoolRequest &req,
                   quadruped_ctrl::QuadrupedCmdBoolResponse &res);
   //
-  void dynamicReconfigureCallback(raisim_examples::generalConfig &config, uint32_t level);
+  void dynamicReconfigureCallback(quadruped_msgs::generalConfig &config, uint32_t level);
 
 private:
   ros::NodeHandle nh_;
@@ -69,8 +69,8 @@ private:
   Eigen::VectorXd effort_;
   Eigen::VectorXd generalizedFrorce_;
   std::string urdf_path_;
-  dynamic_reconfigure::Server<raisim_examples::generalConfig> df_server;
-  dynamic_reconfigure::Server<raisim_examples::generalConfig>::CallbackType df_callback_type;
+  dynamic_reconfigure::Server<quadruped_msgs::generalConfig> df_server;
+  dynamic_reconfigure::Server<quadruped_msgs::generalConfig>::CallbackType df_callback_type;
 };
 
 //! @brief Шаблоннная функция для чтения параметров

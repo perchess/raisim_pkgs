@@ -8,4 +8,5 @@
     launch-prefix="bash -c 'sleep 1.0; $0 $@' ">
         <param name="urdf_path" value="$(find a1_description)/urdf/a1.urdf"/>
     </node>
+    <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="reconfigure" output="screen"/>
 </launch>
