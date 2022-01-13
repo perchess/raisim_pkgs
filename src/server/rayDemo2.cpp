@@ -21,17 +21,17 @@ int main(int argc, char* argv[]) {
   /// create objects
   raisim::TerrainProperties terrainProperties;
   terrainProperties.frequency = 0.2;
-  terrainProperties.zScale = 2.0;
+  terrainProperties.zScale = 3.0;
   terrainProperties.xSize = 70.0;
   terrainProperties.ySize = 70.0;
   terrainProperties.xSamples = 70;
   terrainProperties.ySamples = 70;
-  terrainProperties.fractalOctaves = 3;
+  terrainProperties.fractalOctaves = 6;
   terrainProperties.fractalLacunarity = 2.0;
   terrainProperties.fractalGain = 0.25;
 
   auto hm = world.addHeightMap(0.0, 0.0, terrainProperties);
-  auto robot = world.addArticulatedSystem(binaryPath.getDirectory() + "/rsc/husky/husky.urdf");
+  auto robot = world.addArticulatedSystem("/home/den/catkin_workspaces/raisim_common/raisim_ros/src/raisim_ros/rsc/husky/husky.urdf");
   robot->setName("smb");
   Eigen::VectorXd gc(robot->getGeneralizedCoordinateDim()), gv(robot->getDOF()), damping(robot->getDOF());
   gc.setZero(); gv.setZero();
@@ -47,8 +47,8 @@ int main(int argc, char* argv[]) {
   server.launchServer();
   std::vector<raisim::Visuals *> scans;
   server.focusOn(robot);
-  int scanSize1 = 8;
-  int scanSize2 = 25;
+  int scanSize1 = 25;
+  int scanSize2 = 50;
 
   for(int i=0; i<scanSize1; i++)
     for(int j=0; j<scanSize2; j++)

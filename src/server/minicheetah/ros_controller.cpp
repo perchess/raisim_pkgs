@@ -18,6 +18,7 @@ MPCControllerRos::MPCControllerRos(double freq)
   srv_gait_server_ = nh_.advertiseService(ros::this_node::getName() + "/set_gait_type", &MPCControllerRos::srvSetGait, this);
   df_callback_type = boost::bind(&MPCControllerRos::dynamicReconfigureCallback, this, _1, _2);
   df_server.setCallback(df_callback_type);
+  effort_pub_ = nh_.advertise<unitree_legged_msgs::LowState>("effort_raisim",1);
 }
 
 MPCControllerRos::~MPCControllerRos()
@@ -33,33 +34,51 @@ void MPCControllerRos::raisimSetup()
   // create raisim world
   world_.setTimeStep(1.0/step_freq_);
   world_.addGround();
+  auto poddon1 = world_.addBox(1.0, 2.0, 0.15,0);
+  poddon1->setName("poddon1");
+  poddon1->setBodyType(raisim::BodyType::STATIC);
+  poddon1->setPosition(0.0,0.0,0.0);
+  poddon1->setOrientation(1.0,0.0,0.0,0.0);
+  auto poddon2 = world_.addBox(1.0, 2.0, 0.15,0);
+  poddon2->setName("poddon");
+  poddon2->setBodyType(raisim::BodyType::STATIC);
+  poddon2->setPosition(0.0,2.0 + 0.15,0.0);
+  poddon2->setOrientation(1.0,0.0,0.0,0.0);
   // COM [0.3, -0.24375, 0.0] [-1.1003e-16, 2.38132, -0.0620116]
   // inertia moments [18.3001, 28.8333, 13.8001] [1.16388e+20, 8.33528e+19, 4.95214e+19] [116388, 83352.8, 49521.4]
   // [-2.50722e-16, 1.24683e-16, -2.15625]
-  raisim::Mat<3, 3> inertia({8.37, 0.0, 0.0,
-                             0.0, 9.1, -0.8358,
-                             0.0, -0.8358, 3.04});
-  raisim::Vec<3> com({0.0, 0.34, -0.18});
-  raisim::Mat<3, 3> inertia_;
-  inertia_.setIdentity();
-  const raisim::Vec<3> com_ = {0, 0, 0};
-  auto stairs = world_.addMesh("/home/den/catkin_workspaces/raisim_common/raisim_ros/src/raisim_ros/rsc/world/stairs/solidworks/solid_stairs.obj", 1000.0, inertia, com_,0.0005);
-  stairs->setPosition(0.0,3.0,0.0);
-  stairs->setOrientation(0.707,0.707,0.0,0.0);
+//  raisim::Mat<3, 3> inertia({8.37, 0.0, 0.0,
+//                             0.0, 9.1, -0.8358,
+//                             0.0, -0.8358, 3.04});
+//  raisim::Vec<3> com({0.0, 0.34, -0.18});
+//  raisim::Mat<3, 3> inertia_;
+//  inertia_.setIdentity();
+//  const raisim::Vec<3> com_ = {0, 0, 0};
+//  auto stairs = world_.addMesh("/home/den/catkin_workspaces/raisim_common/raisim_ros/src/raisim_ros/rsc/world/stairs/solidworks/solid_stairs.obj", 1000.0, inertia, com_,0.0005);
+//  stairs->setPosition(0.0,3.0,0.0);
+//  stairs->setOrientation(0.707,0.707,0.0,0.0);
   robot_ = world_.addArticulatedSystem(urdf_path_);
   Eigen::VectorXd jointNominalConfig(robot_->getGeneralizedCoordinateDim());
+
   jointNominalConfig << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
-      -0.23110604286193848, 0.7660617828369141, -1.930681824684143,
-      0.2086973786354065, 0.7694507837295532, -1.945541501045227,
-      -0.2868724763393402, 0.7470470666885376, -1.8848075866699219,
-      0.2648811340332031, 0.7518696784973145, -1.9018760919570923;
+      0.06, 0.6, -1.2,
+      -0.06, 0.6, -1.2,
+      0.06, 0.6, -1.2,
+      -0.06, 0.6, -1.2;
+
+//  jointNominalConfig << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
+//      -0.23110604286193848, 0.7660617828369141, -1.930681824684143,
+//      0.2086973786354065, 0.7694507837295532, -1.945541501045227,
+//      -0.2868724763393402, 0.7470470666885376, -1.8848075866699219,
+//      0.2648811340332031, 0.7518696784973145, -1.9018760919570923;
   //  jointNominalConfig << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
   //      -0.23110604286193848, -0.7660617828369141, 1.930681824684143,
   //      0.2086973786354065, -0.7694507837295532, 1.945541501045227,
   //      -0.2868724763393402, -0.7470470666885376, 1.8848075866699219,
   //      0.2648811340332031, -0.7518696784973145, 1.9018760919570923;
   robot_->setGeneralizedCoordinate(jointNominalConfig);
-  robot_->setControlMode(raisim::ControlMode::FORCE_AND_TORQUE);
+
+
 
   robot_->setGeneralizedForce(Eigen::VectorXd::Zero(robot_->getDOF()));
 
@@ -72,7 +91,31 @@ void MPCControllerRos::raisimSetup()
 
 void MPCControllerRos::preWork()
 {
-  size_t iters = 10;
+  Eigen::VectorXd stand_pos(19);
+  stand_pos << 0, 0, 0.54, 1.0, 0.0, 0.0, 0.0,
+      0.06, 0.6, -1.2,
+      -0.06, 0.6, -1.2,
+      0.06, 0.6, -1.2,
+      -0.06, 0.6, -1.2;
+
+  Eigen::VectorXd stand_vel(Eigen::VectorXd::Zero(18));
+  Eigen::VectorXd jointPgain(robot_->getDOF());
+  Eigen::VectorXd jointDgain(robot_->getDOF());
+  jointPgain.tail(12).setConstant(100.0);
+  jointDgain.tail(12).setConstant(10.0);
+  robot_->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
+  size_t iters = 4000;
+  // Задержка чтобы успел прогрузиться мир
+  for (size_t i = 0; i < iters; i++)
+  {
+        std::this_thread::sleep_for(std::chrono::microseconds(1000));
+        robot_->setPdTarget(stand_pos, stand_vel);
+        robot_->setPdGains(jointPgain, jointDgain);
+        raisim_server_->integrateWorldThreadSafe();
+  }
+  robot_->setControlMode(raisim::ControlMode::FORCE_AND_TORQUE);
+  iters = 10;
+  controller_->SetRobotMode(0);
   controller_->SetGaitType(STANDING);
   for (size_t i = 0; i < iters; i++)
   {
@@ -95,10 +138,10 @@ void MPCControllerRos::updateFeedback()
   imu_.accelerometer(0, 0) = rot_mat[0][0] * acc(0) + rot_mat[1][0]*acc(1) + rot_mat[2][0] * acc(2);
   imu_.accelerometer(1, 0) = rot_mat[0][1] * acc(0) + rot_mat[1][1]*acc(1) + rot_mat[2][1] * acc(2);
   imu_.accelerometer(2, 0) = rot_mat[0][2] * acc(0) + rot_mat[1][2]*acc(1) + rot_mat[2][2] * acc(2);
-  imu_.quat(3, 0) = q_(3);
   imu_.quat(0, 0) = q_(4);
   imu_.quat(1, 0) = q_(5);
   imu_.quat(2, 0) = q_(6);
+  imu_.quat(3, 0) = q_(3);
   imu_.gyro(0, 0) = rot_mat[0][0] * qd_(3) + rot_mat[1][0]*qd_(4)+ rot_mat[2][0] * qd_(5);
   imu_.gyro(1, 0) = rot_mat[0][1] * qd_(3) + rot_mat[1][1]*qd_(4)+ rot_mat[2][1] * qd_(5);
   imu_.gyro(2, 0) = rot_mat[0][2] * qd_(3) + rot_mat[1][2]*qd_(4)+ rot_mat[2][2] * qd_(5);
@@ -110,12 +153,15 @@ void MPCControllerRos::updateFeedback()
 
 void MPCControllerRos::spin()
 {
+//  robot_->setBasePos(raisim::Vec<3>({0,0,0.8}));
+//  robot_->setBaseOrientation_e(Eigen::Matrix3d::Identity(3,3));
   ros::spinOnce();
   robot_->getState(q_, qd_);
   a1_feedback(q_, qd_);
   updateFeedback();
   effort_ = controller_->TorqueCalculator(imu_, legdata_);
   a1_effort(effort_);
+  publishEffort_toRos(effort_);
   generalizedFrorce_ << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, effort_;
   robot_->setGeneralizedForce(generalizedFrorce_);
   prev_q_ = q_;
@@ -192,8 +238,15 @@ bool MPCControllerRos::srvSetGait(quadruped_ctrl::QuadrupedCmdBoolRequest &req,
 //  Изменения в направлениях осей для unitree a1
 void a1_effort (Eigen::VectorXd& eff)
 {
+  float effthreshold = 50.0;
+  for (size_t joint = 0; joint < 12; joint++)
+  {
+  eff(joint) = eff(joint) >= effthreshold ? effthreshold : eff(joint);
+  eff(joint) = eff(joint) <= -effthreshold ? -effthreshold : eff(joint);
+  }
   for (int i = 0; i < 4; i++)
   {
+//    eff(i * 3) = -eff(i * 3);
     eff(i * 3 + 1) = -eff(i * 3 + 1);
     eff(i * 3 + 2) = -eff(i * 3 + 2);
   }
@@ -204,8 +257,10 @@ void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd)
 {
   for (int i = 0; i < 4; i++)
   {
+//    q(i*3+7) = -q(i*3+7);
     q(i * 3 + 1+7) = -q(i * 3 + 1+7);
     q(i * 3 + 2+7) = -q(i * 3 + 2+7);
+//    qd(i*3+6) = -qd(i*3+6);
     qd(i * 3 + 1+6) = -qd(i * 3 + 1+6);
     qd(i * 3 + 2+6) = -qd(i * 3 + 2+6);
   }
@@ -216,4 +271,15 @@ void MPCControllerRos::dynamicReconfigureCallback(quadruped_msgs::generalConfig 
   ROS_INFO("Get new config");
   // TODO: Передавать конфигу в контроллер, а там разбивать параметры
   controller_->updateConfig(config);
+}
+
+void MPCControllerRos::publishEffort_toRos(Eigen::VectorXd& effort)
+{
+  unitree_legged_msgs::LowState msg;
+  msg.header.stamp = ros::Time::now();
+  for (size_t joint = 0; joint < 12; joint++)
+  {
+    msg.motorState.at(joint).tauEst = effort(joint);
+  }
+  effort_pub_.publish(msg);
 }

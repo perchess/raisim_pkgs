@@ -46,6 +46,7 @@ public:
                   quadruped_ctrl::QuadrupedCmdBoolResponse &res);
   //
   void dynamicReconfigureCallback(quadruped_msgs::generalConfig &config, uint32_t level);
+  void publishEffort_toRos(Eigen::VectorXd& effort);
 
 private:
   ros::NodeHandle nh_;
@@ -71,6 +72,7 @@ private:
   std::string urdf_path_;
   dynamic_reconfigure::Server<quadruped_msgs::generalConfig> df_server;
   dynamic_reconfigure::Server<quadruped_msgs::generalConfig>::CallbackType df_callback_type;
+  ros::Publisher effort_pub_;
 };
 
 //! @brief Шаблоннная функция для чтения параметров
@@ -91,4 +93,3 @@ void a1_effort (Eigen::VectorXd& eff);
 
 //  Изменения в направлениях осей для unitree a1
 void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd);
-
