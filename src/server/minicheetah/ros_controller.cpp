@@ -4,6 +4,8 @@
 MPCControllerRos::MPCControllerRos(double freq)
   : step_freq_(freq)
   , world_()
+  , scanDim1_(20)
+  , scanDim2_(20)
   //  , nh_("~")
 {
   readParam<std::string>("~urdf_path", urdf_path_, "/home/den/catkin_workspaces/raisim_common/raisim_ros/src/a1_description/urdf/a1.urdf");
@@ -87,6 +89,13 @@ void MPCControllerRos::raisimSetup()
   raisim_server_ = new raisim::RaisimServer(&world_);
   raisim_server_->launchServer();
   raisim_server_->focusOn(robot_);
+
+  /// Setup laser dimensions
+
+  for(int i=0; i<scanDim1_; i++)
+    for(int j=0; j<scanDim2_; j++)
+      scans_.push_back(raisim_server_->addVisualSphere("sphere" + std::to_string(i) + "/" + std::to_string(j), 0.01, 1, 0, 0));
+
 }
 
 void MPCControllerRos::preWork()
@@ -156,6 +165,9 @@ void MPCControllerRos::spin()
 //  robot_->setBasePos(raisim::Vec<3>({0,0,0.8}));
 //  robot_->setBaseOrientation_e(Eigen::Matrix3d::Identity(3,3));
   ros::spinOnce();
+  std::this_thread::sleep_for(std::chrono::microseconds(long(world_.getTimeStep() * 1000000)));
+  raisim_server_->integrateWorldThreadSafe();
+  depthSensorWork();
   robot_->getState(q_, qd_);
   a1_feedback(q_, qd_);
   updateFeedback();
@@ -166,8 +178,6 @@ void MPCControllerRos::spin()
   robot_->setGeneralizedForce(generalizedFrorce_);
   prev_q_ = q_;
   prev_qd_ = qd_;
-  std::this_thread::sleep_for(std::chrono::microseconds(long(world_.getTimeStep() * 1000000)));
-  raisim_server_->integrateWorldThreadSafe();
   controller_->SetRobotVel(twist_.linear.x, twist_.linear.y, twist_.angular.z);
 }
 
@@ -282,4 +292,29 @@ void MPCControllerRos::publishEffort_toRos(Eigen::VectorXd& effort)
     msg.motorState.at(joint).tauEst = effort(joint);
   }
   effort_pub_.publish(msg);
+}
+
+void MPCControllerRos::depthSensorWork()
+{
+  raisim::Vec<3> lidarPos;
+  raisim::Mat<3,3> lidarOri;
+  Eigen::Vector3d direction;
+  robot_->getFramePosition("depth_joint", lidarPos);
+  robot_->getFrameOrientation("depth_joint", lidarOri);
+
+  for(int i=0; i<scanDim1_; i++) {
+    for (int j = 0; j < scanDim2_; j++) {
+      const double yaw = j * M_PI / scanDim2_ * 0.6 - 0.3 * M_PI;
+      double pitch = -(i * 0.3/scanDim1_) + 0.2;
+      const double normInv = 1. / sqrt(pitch * pitch + 1);
+      direction = {cos(yaw) * normInv, sin(yaw) * normInv, -pitch * normInv};
+      Eigen::Vector3d rayDirection;
+      rayDirection = lidarOri.e() * direction;
+      auto &col = world_.rayTest(lidarPos.e(), rayDirection, 30);
+      if (col.size() > 0)
+        scans_[i * scanDim2_ + j]->setPosition(col[0].getPosition());
+      else
+        scans_[i * scanDim2_ + j]->setPosition({0, 0, 100});
+    }
+  }
 }

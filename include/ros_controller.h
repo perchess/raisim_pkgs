@@ -47,6 +47,7 @@ public:
   //
   void dynamicReconfigureCallback(quadruped_msgs::generalConfig &config, uint32_t level);
   void publishEffort_toRos(Eigen::VectorXd& effort);
+  void depthSensorWork();
 
 private:
   ros::NodeHandle nh_;
@@ -73,6 +74,9 @@ private:
   dynamic_reconfigure::Server<quadruped_msgs::generalConfig> df_server;
   dynamic_reconfigure::Server<quadruped_msgs::generalConfig>::CallbackType df_callback_type;
   ros::Publisher effort_pub_;
+  std::vector<raisim::Visuals *> scans_;
+  int scanDim1_;
+  int scanDim2_;
 };
 
 //! @brief Шаблоннная функция для чтения параметров
