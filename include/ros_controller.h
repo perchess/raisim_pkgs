@@ -97,3 +97,6 @@ void a1_effort (Eigen::VectorXd& eff);
 
 //  Изменения в направлениях осей для unitree a1
 void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd);
+
+// Расчет среднего значения в векторе по z-составляющей
+double avgVector(std::vector<raisim::Visuals *> const& v);

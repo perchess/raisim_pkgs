@@ -302,19 +302,40 @@ void MPCControllerRos::depthSensorWork()
   robot_->getFramePosition("depth_joint", lidarPos);
   robot_->getFrameOrientation("depth_joint", lidarOri);
 
-  for(int i=0; i<scanDim1_; i++) {
-    for (int j = 0; j < scanDim2_; j++) {
+  for(int i=0; i<scanDim1_; i++)
+  {
+    for (int j = 0; j < scanDim2_; j++)
+    {
       const double yaw = j * M_PI / scanDim2_ * 0.6 - 0.3 * M_PI;
-      double pitch = -(i * 0.3/scanDim1_) + 0.2;
+      double pitch = -(i * 0.3/scanDim1_) + 0.1;
       const double normInv = 1. / sqrt(pitch * pitch + 1);
       direction = {cos(yaw) * normInv, sin(yaw) * normInv, -pitch * normInv};
       Eigen::Vector3d rayDirection;
       rayDirection = lidarOri.e() * direction;
-      auto &col = world_.rayTest(lidarPos.e(), rayDirection, 30);
+      auto &col = world_.rayTest(lidarPos.e(), rayDirection, 5);
       if (col.size() > 0)
         scans_[i * scanDim2_ + j]->setPosition(col[0].getPosition());
-      else
-        scans_[i * scanDim2_ + j]->setPosition({0, 0, 100});
+      //      else
+      //        scans_[i * scanDim2_ + j]->setPosition({0, 0, 100});
     }
   }
+
+  // Покрасить точки в "яме" в синий цвет, остальные в красный
+  double avg = avgVector(scans_);
+  for (auto it:scans_)
+  {
+    if (it->getPosition().z() < avg)
+    {
+      it->setColor(0,0,1,1);
+    }
+    else
+      it->setColor(1,0,0,1);
+  }
+
+}
+
+
+double avgVector(std::vector<raisim::Visuals *> const& v) {
+  return 1.0 * std::accumulate(v.begin(), v.end(), 0.0,
+                               [&](double a, raisim::Visuals * b){return a + b->getPosition().z(); }) / v.size();
 }
