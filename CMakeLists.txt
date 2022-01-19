@@ -7,6 +7,7 @@ project(raisim_examples LANGUAGES CXX)
 
 #find_package(raisim CONFIG REQUIRED)
 find_package(Eigen3 REQUIRED HINTS ${Eigen3_HINT})
+find_package(Boost REQUIRED)
 find_package(catkin REQUIRED 
   roscpp
   trajectory_msgs
@@ -48,7 +49,8 @@ catkin_package(
 include_directories (
     include
     ${EIGEN3_INCLUDE_DIRS}
-    ${catkin_INCLUDE_DIRS})
+    ${catkin_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS})
 
 #==
 # Build Targets
@@ -82,7 +84,7 @@ set (minicheetah_src
     src/server/minicheetah/minicheetah.cpp
     include/ros_controller.h )
 add_executable(minicheetah ${minicheetah_src})
-target_link_libraries(minicheetah PUBLIC pthread ${catkin_LIBRARIES} Eigen3::Eigen)
+target_link_libraries(minicheetah PUBLIC pthread ${catkin_LIBRARIES} Eigen3::Eigen ${Boost_LIBRARIES})
 create_executable(materials src/server/material.cpp)
 create_executable(materialStaticFriction src/server/materialStaticFriction.cpp)
 create_executable(heightMapUsingPng src/server/heightMapUsingPng.cpp)

@@ -6,6 +6,9 @@ MPCControllerRos::MPCControllerRos(double freq)
   , world_()
   , scanDim1_(20)
   , scanDim2_(20)
+  , scans_counter_(0)
+  , bad_pts_(1000)
+  , scans_buffer(1000)
   //  , nh_("~")
 {
   readParam<std::string>("~urdf_path", urdf_path_, "/home/den/catkin_workspaces/raisim_common/raisim_ros/src/a1_description/urdf/a1.urdf");
@@ -21,6 +24,7 @@ MPCControllerRos::MPCControllerRos(double freq)
   df_callback_type = boost::bind(&MPCControllerRos::dynamicReconfigureCallback, this, _1, _2);
   df_server.setCallback(df_callback_type);
   effort_pub_ = nh_.advertise<unitree_legged_msgs::LowState>("effort_raisim",1);
+
 }
 
 MPCControllerRos::~MPCControllerRos()
@@ -92,10 +96,14 @@ void MPCControllerRos::raisimSetup()
 
   /// Setup laser dimensions
 
-  for(int i=0; i<scanDim1_; i++)
-    for(int j=0; j<scanDim2_; j++)
-      scans_.push_back(raisim_server_->addVisualSphere("sphere" + std::to_string(i) + "/" + std::to_string(j), 0.01, 1, 0, 0));
+//  for(int i=0; i<scanDim1_; i++)
+//    for(int j=0; j<scanDim2_; j++)
+//      scans_.push_back(raisim_server_->addVisualSphere("sphere" + std::to_string(i) + "/" + std::to_string(j), 0.01, 1, 0, 0));
+  for (size_t i = 0; i < 1000; i++)
+    scans_buffer.push_back(raisim_server_->addVisualSphere("sphere" + std::to_string(i), 0.01, 1, 0, 0));
 
+  raisim_server_->addVisualSphere("pfinal", 0.05, 1, 0, 0);
+  raisim_server_->addVisualSphere("pcur", 0.05, 1, 0, 0);
 }
 
 void MPCControllerRos::preWork()
@@ -137,6 +145,8 @@ void MPCControllerRos::preWork()
     prev_q_ = q_;
     prev_qd_ = qd_;
   }
+  // Запускаем обработчик лидара
+    timer_ = nh_.createTimer(ros::Duration(0.25), &MPCControllerRos::depthSensorWork, this);
 }
 
 void MPCControllerRos::updateFeedback()
@@ -167,7 +177,7 @@ void MPCControllerRos::spin()
   ros::spinOnce();
   std::this_thread::sleep_for(std::chrono::microseconds(long(world_.getTimeStep() * 1000000)));
   raisim_server_->integrateWorldThreadSafe();
-  depthSensorWork();
+//  depthSensorWork();
   robot_->getState(q_, qd_);
   a1_feedback(q_, qd_);
   updateFeedback();
@@ -294,7 +304,7 @@ void MPCControllerRos::publishEffort_toRos(Eigen::VectorXd& effort)
   effort_pub_.publish(msg);
 }
 
-void MPCControllerRos::depthSensorWork()
+void MPCControllerRos::depthSensorWork(const ros::TimerEvent& event)
 {
   raisim::Vec<3> lidarPos;
   raisim::Mat<3,3> lidarOri;
@@ -307,35 +317,91 @@ void MPCControllerRos::depthSensorWork()
     for (int j = 0; j < scanDim2_; j++)
     {
       const double yaw = j * M_PI / scanDim2_ * 0.6 - 0.3 * M_PI;
-      double pitch = -(i * 0.3/scanDim1_) + 0.1;
+      double pitch = -(i * 1.0/scanDim1_) + 0.1;
       const double normInv = 1. / sqrt(pitch * pitch + 1);
       direction = {cos(yaw) * normInv, sin(yaw) * normInv, -pitch * normInv};
       Eigen::Vector3d rayDirection;
       rayDirection = lidarOri.e() * direction;
       auto &col = world_.rayTest(lidarPos.e(), rayDirection, 5);
       if (col.size() > 0)
-        scans_[i * scanDim2_ + j]->setPosition(col[0].getPosition());
+      {
+        scans_buffer.at(scans_counter_)->setPosition(col[0].getPosition());
+      }
+      scans_counter_ = scans_counter_ < scans_buffer.size() - 1 ? scans_counter_ + 1 : 0;
+
+//        scans_[i * scanDim2_ + j]->setPosition(col[0].getPosition());
       //      else
       //        scans_[i * scanDim2_ + j]->setPosition({0, 0, 100});
     }
   }
 
   // Покрасить точки в "яме" в синий цвет, остальные в красный
-  double avg = avgVector(scans_);
-  for (auto it:scans_)
-  {
-    if (it->getPosition().z() < avg)
-    {
-      it->setColor(0,0,1,1);
-    }
-    else
-      it->setColor(1,0,0,1);
-  }
+//  double avg = avgVector(scans_);
+//  for (auto it:scans_)
+//  {
+//    // Яма
+//    if (it->getPosition().z() < avg)
+//    {
+//      it->setColor(0,0,1,1);
 
+//    }
+//    // Поверхность
+//    else
+//    {
+//      it->setColor(1,0,0,1);
+//      bad_pts_.push_back(it);
+//    }
+//  }
+
+//  static double eps = 0.5;
+//  Vec3<float> pf_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition();
+//  Vec3<float> pfoot_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getPosition();
+//  double dist = calcMinDistance(pf_FR);
+//  raisim_server_->getVisualObject("pfinal")->setPosition(pf_FR.x(),pf_FR.y(),bad_pts_.front()->getPosition().z());
+//  raisim_server_->getVisualObject("pfinal")->setColor(1,1,0,1);
+//  raisim_server_->getVisualObject("pcur")->setPosition(pfoot_FR.x(),pfoot_FR.y(),pfoot_FR.z());
+//  raisim_server_->getVisualObject("pcur")->setColor(1,1,1,1);
+
+//  ROS_INFO_STREAM("DIST " << dist);
+//  for (auto it:bad_pts_)
+//  {
+//    // Тестовая проверка принадлежности Pf к точке "поддона"
+////    double dist = calcDistance(controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition(),
+////        it->getPosition());
+//    if (std::abs(dist) <= eps)
+//    {
+//      ROS_INFO_STREAM("GAP");
+//      ROS_INFO_STREAM( "dist " << std::abs(dist));
+//      ROS_INFO_STREAM( "pc point  " << it->getPosition());
+//      ROS_INFO_STREAM( "pf  " << controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition());
+
+
+//      break;;
+//    }
+//  }
 }
 
 
 double avgVector(std::vector<raisim::Visuals *> const& v) {
   return 1.0 * std::accumulate(v.begin(), v.end(), 0.0,
                                [&](double a, raisim::Visuals * b){return a + b->getPosition().z(); }) / v.size();
+}
+
+double calcDistance(Vec3<float> const& pf, Eigen::Vector3d const& point)
+{
+  return sqrt(pow(pf.x() - point.x(), 2) +
+              pow(pf.y() - point.y(), 2));
+}
+
+double MPCControllerRos::calcMinDistance(Vec3<float> const& pf)
+{
+  double dist = 9999;
+  double cur_dist = 0;
+  for (auto it:bad_pts_)
+  {
+    cur_dist = calcDistance(pf, it->getPosition());
+    if (cur_dist < dist)
+      dist = cur_dist;
+  }
+  return dist;
 }

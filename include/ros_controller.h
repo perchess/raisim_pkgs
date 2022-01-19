@@ -12,6 +12,7 @@
 #include <quadruped_ctrl/QuadrupedCmdBool.h>
 #include <dynamic_reconfigure/server.h>
 #include <quadruped_msgs/generalConfig.h>
+#include <boost/circular_buffer.hpp>
 
 enum Gaits
 {
@@ -47,13 +48,15 @@ public:
   //
   void dynamicReconfigureCallback(quadruped_msgs::generalConfig &config, uint32_t level);
   void publishEffort_toRos(Eigen::VectorXd& effort);
-  void depthSensorWork();
+  void depthSensorWork(const ros::TimerEvent& event);
+  double calcMinDistance(Vec3<float> const& pf);
 
 private:
   ros::NodeHandle nh_;
   ros::Subscriber cmd_vel_sub_;
   ros::ServiceServer srv_mode_server_;
   ros::ServiceServer srv_gait_server_;
+  ros::Timer timer_;
   geometry_msgs::Twist twist_;
   GaitCtrller* controller_;
   double step_freq_;
@@ -77,6 +80,9 @@ private:
   std::vector<raisim::Visuals *> scans_;
   int scanDim1_;
   int scanDim2_;
+  uint16_t scans_counter_;
+  boost::circular_buffer<raisim::Visuals *> bad_pts_;
+  boost::circular_buffer<raisim::Visuals *> scans_buffer;
 };
 
 //! @brief Шаблоннная функция для чтения параметров
@@ -100,3 +106,6 @@ void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd);
 
 // Расчет среднего значения в векторе по z-составляющей
 double avgVector(std::vector<raisim::Visuals *> const& v);
+
+double calcDistance(Vec3<float> const& pf, Eigen::Vector3d const&);
+
