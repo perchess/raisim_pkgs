@@ -5,10 +5,15 @@ project(raisim_examples LANGUAGES CXX)
 # Dependencies
 #==
 
+# Tacke env cmake_prefix and append  path to raisim libs
+string(REPLACE ":" ";" CMAKE_PREFIX_PATH "$ENV{CMAKE_PREFIX_PATH}")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../raisim_ros/raisim/linux")
+message ("CMAKE_PREFIX : " ${CMAKE_PREFIX_PATH})
+
 #find_package(raisim CONFIG REQUIRED)
 find_package(Eigen3 REQUIRED HINTS ${Eigen3_HINT})
 find_package(Boost REQUIRED)
-find_package(catkin REQUIRED 
+find_package(catkin REQUIRED
   roscpp
   trajectory_msgs
   raisim
@@ -19,7 +24,6 @@ find_package(catkin REQUIRED
   geometry_msgs
 #  dynamic_reconfigure
   COMPONENTS)
-#message ("CMAKE_PREFIX : " ${CMAKE_PREFIX_PATH})
 #generate_dynamic_reconfigure_options(
 #  cfg/general.cfg
 #)
