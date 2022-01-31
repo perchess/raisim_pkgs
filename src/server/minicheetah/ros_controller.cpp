@@ -7,7 +7,7 @@ MPCControllerRos::MPCControllerRos(double freq)
   , scanDim1_(20)
   , scanDim2_(20)
   , scans_counter_(0)
-  , bad_pts_(1000)
+  , good_pts_(1000)
   , scans_buffer(1000)
   //  , nh_("~")
 {
@@ -335,35 +335,35 @@ void MPCControllerRos::depthSensorWork(const ros::TimerEvent& event)
     }
   }
 
-  // Покрасить точки в "яме" в синий цвет, остальные в красный
-//  double avg = avgVector(scans_);
-//  for (auto it:scans_)
-//  {
-//    // Яма
-//    if (it->getPosition().z() < avg)
-//    {
-//      it->setColor(0,0,1,1);
+  /// Покрасить точки в "яме" в синий цвет, остальные в красный
+  double avg = avgBuffer(scans_buffer);
+  for (auto it:scans_buffer)
+  {
+    // Яма
+    if (it->getPosition().z() < avg)
+    {
+      it->setColor(0,0,1,1);
 
-//    }
-//    // Поверхность
-//    else
-//    {
-//      it->setColor(1,0,0,1);
-//      bad_pts_.push_back(it);
-//    }
-//  }
+    }
+    // Поверхность
+    else
+    {
+      it->setColor(1,0,0,1);
+      good_pts_.push_back(it);
+    }
+  }
 
 //  static double eps = 0.5;
-//  Vec3<float> pf_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition();
+  Vec3<float> pf_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition();
 //  Vec3<float> pfoot_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getPosition();
 //  double dist = calcMinDistance(pf_FR);
-//  raisim_server_->getVisualObject("pfinal")->setPosition(pf_FR.x(),pf_FR.y(),bad_pts_.front()->getPosition().z());
-//  raisim_server_->getVisualObject("pfinal")->setColor(1,1,0,1);
+  raisim_server_->getVisualObject("pfinal")->setPosition(pf_FR.x(),pf_FR.y(),good_pts_.front()->getPosition().z());
+  raisim_server_->getVisualObject("pfinal")->setColor(1,1,0,1);
 //  raisim_server_->getVisualObject("pcur")->setPosition(pfoot_FR.x(),pfoot_FR.y(),pfoot_FR.z());
 //  raisim_server_->getVisualObject("pcur")->setColor(1,1,1,1);
 
 //  ROS_INFO_STREAM("DIST " << dist);
-//  for (auto it:bad_pts_)
+//  for (auto it:good_pts_)
 //  {
 //    // Тестовая проверка принадлежности Pf к точке "поддона"
 ////    double dist = calcDistance(controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition(),
@@ -387,6 +387,12 @@ double avgVector(std::vector<raisim::Visuals *> const& v) {
                                [&](double a, raisim::Visuals * b){return a + b->getPosition().z(); }) / v.size();
 }
 
+
+double avgBuffer(boost::circular_buffer<raisim::Visuals *> const& v) {
+  return 1.0 * std::accumulate(v.begin(), v.end(), 0.0,
+                               [&](double a, raisim::Visuals * b){return a + b->getPosition().z(); }) / v.size();
+}
+
 double calcDistance(Vec3<float> const& pf, Eigen::Vector3d const& point)
 {
   return sqrt(pow(pf.x() - point.x(), 2) +
@@ -397,7 +403,7 @@ double MPCControllerRos::calcMinDistance(Vec3<float> const& pf)
 {
   double dist = 9999;
   double cur_dist = 0;
-  for (auto it:bad_pts_)
+  for (auto it:good_pts_)
   {
     cur_dist = calcDistance(pf, it->getPosition());
     if (cur_dist < dist)

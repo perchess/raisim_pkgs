@@ -81,7 +81,7 @@ private:
   int scanDim1_;
   int scanDim2_;
   uint16_t scans_counter_;
-  boost::circular_buffer<raisim::Visuals *> bad_pts_;
+  boost::circular_buffer<raisim::Visuals *> good_pts_;
   boost::circular_buffer<raisim::Visuals *> scans_buffer;
 };
 
@@ -106,6 +106,8 @@ void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd);
 
 // Расчет среднего значения в векторе по z-составляющей
 double avgVector(std::vector<raisim::Visuals *> const& v);
+
+double avgBuffer(boost::circular_buffer<raisim::Visuals *> const& v);
 
 double calcDistance(Vec3<float> const& pf, Eigen::Vector3d const&);
 
