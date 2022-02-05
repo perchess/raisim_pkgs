@@ -49,7 +49,11 @@ public:
   void dynamicReconfigureCallback(quadruped_msgs::generalConfig &config, uint32_t level);
   void publishEffort_toRos(Eigen::VectorXd& effort);
   void depthSensorWork(const ros::TimerEvent& event);
+  void drawVisual();
   double calcMinDistance(Vec3<float> const& pf);
+  const Eigen::Vector3d findClosestPoint(const Eigen::Vector3d& point, boost::circular_buffer<Eigen::Vector3d>& buffer);
+  // Стоит ли добавлять точку в буфер?
+  bool canPlace(const Eigen::Vector3d& point);
 
 private:
   ros::NodeHandle nh_;
@@ -80,9 +84,11 @@ private:
   std::vector<raisim::Visuals *> scans_;
   int scanDim1_;
   int scanDim2_;
+  size_t buffer_size_;
   uint16_t scans_counter_;
-  boost::circular_buffer<raisim::Visuals *> good_pts_;
-  boost::circular_buffer<raisim::Visuals *> scans_buffer;
+  boost::circular_buffer<Eigen::Vector3d> good_pts_;
+  boost::circular_buffer<raisim::Visuals *> visuals_buffer_;
+  boost::circular_buffer<Eigen::Vector3d> scans_pts_buffer_;
 };
 
 //! @brief Шаблоннная функция для чтения параметров
@@ -107,7 +113,9 @@ void a1_feedback(Eigen::VectorXd& q, Eigen::VectorXd& qd);
 // Расчет среднего значения в векторе по z-составляющей
 double avgVector(std::vector<raisim::Visuals *> const& v);
 
-double avgBuffer(boost::circular_buffer<raisim::Visuals *> const& v);
+double avgBufferVisuals(boost::circular_buffer<raisim::Visuals *> const& v);
+
+double avgBufferPoints(boost::circular_buffer<Eigen::Vector3d> const& v);
 
 double calcDistance(Vec3<float> const& pf, Eigen::Vector3d const&);
 

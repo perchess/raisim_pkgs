@@ -4,7 +4,7 @@ project(raisim_examples LANGUAGES CXX)
 #==
 # Dependencies
 #==
-
+set(CMAKE_BUILD_TYPE "Release")
 # Tacke env cmake_prefix and append  path to raisim libs
 string(REPLACE ":" ";" CMAKE_PREFIX_PATH "$ENV{CMAKE_PREFIX_PATH}")
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../raisim_ros/raisim/linux")

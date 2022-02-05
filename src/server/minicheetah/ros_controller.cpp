@@ -6,9 +6,11 @@ MPCControllerRos::MPCControllerRos(double freq)
   , world_()
   , scanDim1_(20)
   , scanDim2_(20)
+  , buffer_size_(2000)
   , scans_counter_(0)
-  , good_pts_(1000)
-  , scans_buffer(1000)
+  , good_pts_(buffer_size_)
+  , visuals_buffer_(buffer_size_/2)
+  , scans_pts_buffer_(buffer_size_)
   //  , nh_("~")
 {
   readParam<std::string>("~urdf_path", urdf_path_, "/home/den/catkin_workspaces/raisim_common/raisim_ros/src/a1_description/urdf/a1.urdf");
@@ -99,11 +101,23 @@ void MPCControllerRos::raisimSetup()
 //  for(int i=0; i<scanDim1_; i++)
 //    for(int j=0; j<scanDim2_; j++)
 //      scans_.push_back(raisim_server_->addVisualSphere("sphere" + std::to_string(i) + "/" + std::to_string(j), 0.01, 1, 0, 0));
-  for (size_t i = 0; i < 1000; i++)
-    scans_buffer.push_back(raisim_server_->addVisualSphere("sphere" + std::to_string(i), 0.01, 1, 0, 0));
+  for (size_t i = 0; i < visuals_buffer_.capacity(); i++)
+  {
+    visuals_buffer_.push_back(raisim_server_->addVisualSphere("sphere" + std::to_string(i), 0.01, 1, 0, 0));
+    visuals_buffer_.back()->setPosition(0,0,0);
+  }
 
+  // Вспомогательные маркеры
   raisim_server_->addVisualSphere("pfinal", 0.05, 1, 0, 0);
+  raisim_server_->getVisualObject("pfinal")->setColor(1,1,0,1);
+  raisim_server_->addVisualSphere("pstart", 0.05, 1, 0, 0);
+  raisim_server_->getVisualObject("pstart")->setColor(0,1,0,1);
   raisim_server_->addVisualSphere("pcur", 0.05, 1, 0, 0);
+  raisim_server_->getVisualObject("pcur")->setColor(1,1,1,1);
+  raisim_server_->addVisualSphere("foot_FR", 0.05, 1, 0, 0);
+  raisim_server_->getVisualObject("foot_FR")->setColor(1,1,.5,1);
+  raisim_server_->addVisualSphere("pf_FR_est", 0.05, 1, 0, 0);
+  raisim_server_->getVisualObject("pf_FR_est")->setColor(1,0,0,1);
 }
 
 void MPCControllerRos::preWork()
@@ -189,6 +203,7 @@ void MPCControllerRos::spin()
   prev_q_ = q_;
   prev_qd_ = qd_;
   controller_->SetRobotVel(twist_.linear.x, twist_.linear.y, twist_.angular.z);
+  drawVisual();
 }
 
 void MPCControllerRos::cmdVelCallback(const geometry_msgs::TwistConstPtr &msg)
@@ -325,9 +340,13 @@ void MPCControllerRos::depthSensorWork(const ros::TimerEvent& event)
       auto &col = world_.rayTest(lidarPos.e(), rayDirection, 5);
       if (col.size() > 0)
       {
-        scans_buffer.at(scans_counter_)->setPosition(col[0].getPosition());
+        if (canPlace(col[0].getPosition()))
+        {
+          scans_pts_buffer_.push_back(col[0].getPosition());
+          visuals_buffer_.at(scans_counter_)->setPosition(col[0].getPosition());
+        }
       }
-      scans_counter_ = scans_counter_ < scans_buffer.size() - 1 ? scans_counter_ + 1 : 0;
+      scans_counter_ = scans_counter_ < visuals_buffer_.capacity() - 1 ? scans_counter_ + 1 : 0;
 
 //        scans_[i * scanDim2_ + j]->setPosition(col[0].getPosition());
       //      else
@@ -336,8 +355,8 @@ void MPCControllerRos::depthSensorWork(const ros::TimerEvent& event)
   }
 
   /// Покрасить точки в "яме" в синий цвет, остальные в красный
-  double avg = avgBuffer(scans_buffer);
-  for (auto it:scans_buffer)
+  double avg = avgBufferPoints(scans_pts_buffer_);
+  for (auto it:visuals_buffer_)
   {
     // Яма
     if (it->getPosition().z() < avg)
@@ -349,36 +368,69 @@ void MPCControllerRos::depthSensorWork(const ros::TimerEvent& event)
     else
     {
       it->setColor(1,0,0,1);
-      good_pts_.push_back(it);
+      good_pts_.push_back(it->getPosition());
     }
   }
 
-//  static double eps = 0.5;
+}
+
+void  MPCControllerRos::drawVisual()
+{
+  ///
+  /// DRAW
+  ///
+  raisim::Vec<3> FR_foot_pose;
+  robot_->getFramePosition("FR_foot_fixed", FR_foot_pose);
+
   Vec3<float> pf_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition();
-//  Vec3<float> pfoot_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getPosition();
-//  double dist = calcMinDistance(pf_FR);
-  raisim_server_->getVisualObject("pfinal")->setPosition(pf_FR.x(),pf_FR.y(),good_pts_.front()->getPosition().z());
-  raisim_server_->getVisualObject("pfinal")->setColor(1,1,0,1);
-//  raisim_server_->getVisualObject("pcur")->setPosition(pfoot_FR.x(),pfoot_FR.y(),pfoot_FR.z());
-//  raisim_server_->getVisualObject("pcur")->setColor(1,1,1,1);
+  Vec3<float> p0_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getStartPosition();
+  Vec3<float> pcur_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getPosition();
+  Vec3<float> step_len_FR = controller_->getConvexMpcPtr()->getFootTrajVect()[0].getStepLength();
+  Vec3<double> pf_fr_estimated(FR_foot_pose.e().x() + step_len_FR.x(),
+                               FR_foot_pose.e().y() + step_len_FR.y(),
+                               good_pts_.front().z());
 
-//  ROS_INFO_STREAM("DIST " << dist);
-//  for (auto it:good_pts_)
-//  {
-//    // Тестовая проверка принадлежности Pf к точке "поддона"
-////    double dist = calcDistance(controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition(),
-////        it->getPosition());
-//    if (std::abs(dist) <= eps)
-//    {
-//      ROS_INFO_STREAM("GAP");
-//      ROS_INFO_STREAM( "dist " << std::abs(dist));
-//      ROS_INFO_STREAM( "pc point  " << it->getPosition());
-//      ROS_INFO_STREAM( "pf  " << controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition());
+//  std::cout << "step len x: " << step_len_FR.x() <<  "step len y: " << step_len_FR.y() << std::endl;
+
+  raisim_server_->getVisualObject("pfinal")->setPosition(pf_FR.x(),pf_FR.y(),good_pts_.front().z());
+  raisim_server_->getVisualObject("pstart")->setPosition(p0_FR.x(),p0_FR.y(),good_pts_.front().z());
+
+  raisim_server_->getVisualObject("pcur")->setPosition(pcur_FR.x(),pcur_FR.y(),good_pts_.front().z());
+
+  raisim_server_->getVisualObject("foot_FR")->setPosition(FR_foot_pose.e().x(),
+                                                          FR_foot_pose.e().y(),
+                                                          FR_foot_pose.e().z());
+
+  raisim_server_->getVisualObject("pf_FR_est")->setPosition(pf_fr_estimated.x(),
+                                                            pf_fr_estimated.y(),
+                                                            pf_fr_estimated.z());
+
+  ///
+  /// PROCESSING
+  ///
+  auto closest = findClosestPoint(pf_fr_estimated, good_pts_);
+  auto dist = closest - pf_fr_estimated;
+  std::cout << "dist X : " << dist.x() << "dist Y : " << dist.y() << std::endl;
+//  controller_->getConvexMpcPtr()->setPfCorrection(dist.x(), dist.y());
 
 
-//      break;;
-//    }
-//  }
+  //  double dist = calcMinDistance(pf_FR);
+  //  static double eps = 0.5;
+  //  ROS_INFO_STREAM("DIST " << dist);
+  //  for (auto it:good_pts_)
+  //  {
+  //    // Тестовая проверка принадлежности Pf к точке "поддона"
+  ////    double dist = calcDistance(controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition(),
+  ////        it->getPosition());
+  //    if (std::abs(dist) <= eps)
+  //    {
+  //      ROS_INFO_STREAM("GAP");
+  //      ROS_INFO_STREAM( "dist " << std::abs(dist));
+  //      ROS_INFO_STREAM( "pc point  " << it->getPosition());
+  //      ROS_INFO_STREAM( "pf  " << controller_->getConvexMpcPtr()->getFootTrajVect()[0].getFinalPosition());
+  //      break;;
+  //    }
+  //  }
 }
 
 
@@ -388,15 +440,31 @@ double avgVector(std::vector<raisim::Visuals *> const& v) {
 }
 
 
-double avgBuffer(boost::circular_buffer<raisim::Visuals *> const& v) {
+double avgBufferVisuals(boost::circular_buffer<raisim::Visuals *> const& v) {
   return 1.0 * std::accumulate(v.begin(), v.end(), 0.0,
                                [&](double a, raisim::Visuals * b){return a + b->getPosition().z(); }) / v.size();
+}
+
+
+double avgBufferPoints(boost::circular_buffer<Eigen::Vector3d> const& v) {
+  return 1.0 * std::accumulate(v.begin(), v.end(), 0.0,
+                               [&](double a, Eigen::Vector3d b){return a + b.z(); }) / v.size();
 }
 
 double calcDistance(Vec3<float> const& pf, Eigen::Vector3d const& point)
 {
   return sqrt(pow(pf.x() - point.x(), 2) +
-              pow(pf.y() - point.y(), 2));
+              pow(pf.y() - point.y(), 2) +
+              pow(pf.z() - point.z(), 2)
+              );
+}
+
+
+double calcDistance(Eigen::Vector3d const& p1, Eigen::Vector3d const& p2)
+{
+  return sqrt(pow(p1.x() - p2.x(), 2) +
+              pow(p1.y() - p2.y(), 2) +
+              pow(p1.z() - p2.z(), 2)  );
 }
 
 double MPCControllerRos::calcMinDistance(Vec3<float> const& pf)
@@ -405,9 +473,38 @@ double MPCControllerRos::calcMinDistance(Vec3<float> const& pf)
   double cur_dist = 0;
   for (auto it:good_pts_)
   {
-    cur_dist = calcDistance(pf, it->getPosition());
+    cur_dist = calcDistance(pf, it);
     if (cur_dist < dist)
       dist = cur_dist;
   }
   return dist;
+}
+
+
+const Eigen::Vector3d MPCControllerRos::findClosestPoint(const Eigen::Vector3d& point,
+                                                         boost::circular_buffer<Eigen::Vector3d>& buffer)
+{
+  double dist = 9999;
+  double cur_dist = 0;
+  Eigen::Vector3d ans = buffer.front();
+  for (auto it:buffer)
+  {
+    cur_dist = calcDistance(point, it);
+    if (cur_dist < dist)
+    {
+      dist = cur_dist;
+      ans = it;
+    }
+  }
+  return ans;
+}
+
+bool MPCControllerRos::canPlace(const Eigen::Vector3d& point)
+{
+  static double thresh = 0.01; // метр
+  auto closest = findClosestPoint(point, scans_pts_buffer_);
+//  std::cout << "distance = " << calcDistance(point, closest) << std::endl;
+  if (calcDistance(point, closest) >= thresh)
+    return true;
+  return false;
 }
